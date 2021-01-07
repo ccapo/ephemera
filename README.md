@@ -10,7 +10,7 @@ Write-Only, In-Memory, Header File-Only, Key-Value Cache Library
 - A signal handler should be used to set `Ephemera::Active` to `false` to shutdown the cache expiry thread.
 - Spawn the cache expiry thread: `std::thread cacheExpiry(Ephemera::instance()->cacheExpiryLoop);`
 - After spawning cache expiry thread the following: `cacheExpiry.join();` will block until the cache expiry thread re-joins the main thread.
-- To insert a new key-value pair: `Ephemera::instance()->set(key, value, DEFAULT_TTL);` (where DEFAULT_TTL is 60 seconds)
+- To insert a new key-value pair: `Ephemera::instance()->set(key, value, DEFAULT_TTL);` (where `DEFAULT_TTL` is 60 seconds)
 - To retrieve the value for a key: `data_t value = Ephemera::instance()->get(key);`
 - It is good practice to test if the returned value is unpopulated: `if (value.empty() == false) std::cout << value << std::endl;`
 
