@@ -2,8 +2,8 @@
 Write-Only, In-Memory, Header File-Only, Key-Value Cache Library
 
 ## Requirements
-- Include `ephemera.h` and `data.h` into project.
-- The libpthread library is required (see `Makefile` for compilation options).
+- Include `include/ephemera.h` and `include/data.h` into project.
+- The `libpthread` library is required (see `Makefile` for compilation options).
 - User must provide a struct defintion for `data_t`, including a helper function to test if an instance of the struct is unpopulated (see `include/data.h` for an example). Optionally the user should provide a custom output stream function for `data_t`.
 
 ## Usage
