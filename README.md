@@ -1,5 +1,5 @@
 # Ephemera
-Write-Only, In-Memory, Header-Only, Key-Value Cache Library
+In-Memory, Write-Only, Header-Only, Key-Value Cache Library
 
 ## Requirements
 - Include `include/ephemera.h` and `include/data.h` into project.
