@@ -1,5 +1,5 @@
 # Ephemera
-In-Memory, Write-Only, Header-Only, Key-Value Cache Library
+An In-Memory, Write-Only, Header-Only, Key-Value Cache Library
 
 ## Build Status
 ![C/C++ CI](https://github.com/ccapo/ephemera/workflows/C/C++%20CI/badge.svg)
