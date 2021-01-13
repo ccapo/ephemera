@@ -23,8 +23,7 @@
 #define INCLUDE_DATA_H_
 
 #include <string>
-
-#include "./common.h"
+#include <iostream>
 
 // Data struct
 struct data_t {
@@ -34,11 +33,6 @@ struct data_t {
   // Constructors
   data_t(): name(""), count(-1) {}
   data_t(const std::string &n, const int &c): name(n), count(c) {}
-
-  // Test if data_t is empty
-  bool empty() {
-    return name == "" && count == -1;
-  }
 };
 
 // Custom output stream for data struct

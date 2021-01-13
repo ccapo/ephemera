@@ -29,7 +29,7 @@ void signalHandler(int signum) {
   void *array[10];
   size_t size;
 
-  Ephemera::Active = false;
+  Ephemera<data_t>::Active = false;
   std::cerr << "Interrupt signal (" << signum << ") received" << std::endl;
 
   // Print stack trace in event of segmentation fault
@@ -40,7 +40,7 @@ void signalHandler(int signum) {
     // Print out all the frames to stderr
     std::cerr << "Error: signal " << signum << std::endl;
     backtrace_symbols_fd(array, size, STDERR_FILENO);
-    exit(ERROR);
+    exit(1);
   }
 }
 
@@ -52,31 +52,58 @@ int main() {
   signal(SIGPIPE, signalHandler);
   signal(SIGSEGV, signalHandler);
 
+  // Create instance of Ephemera cache
+  Ephemera<data_t> ec;
+
   // Spawn cache expiry thread
-  std::thread cacheExpiry(Ephemera::instance()->cacheExpiryLoop);
+  std::thread cacheExpiry(Ephemera<data_t>::cacheExpiryLoop, std::ref(ec));
 
   // Example cache insertion using default expiry (60 seconds)
   data_t value1 = {"foo", 123};
-  Ephemera::instance()->set("key1", value1);
-  Ephemera::instance()->set("key2", value1);
-  Ephemera::instance()->set("key3", value1);
+  std::string key = "key1";
+  bool err = ec.set(key, value1);
+  key = "key2";
+  err = ec.set(key, value1);
+  key = "key3";
+  err = ec.set(key, value1);
+  err = ec.set(key, value1);
+  if (err == false) {
+    std::cout << "The key '" << key << "' already exists" << std::endl;
+  }
 
   // Example cache insertion using explicit expiry
   data_t value2 = {"bar", 321};
-  Ephemera::instance()->set("keyA", value2, 2*DEFAULT_TTL);
-  Ephemera::instance()->set("keyB", value2, 3*DEFAULT_TTL);
-  Ephemera::instance()->set("keyC", value2, 4*DEFAULT_TTL);
+  key = "keyA";
+  err = ec.set(key, value2, 2*DEFAULT_TTL);
+  key = "keyB";
+  err = ec.set(key, value2, 3*DEFAULT_TTL);
+  key = "keyC";
+  err = ec.set(key, value2, 4*DEFAULT_TTL);
 
   // Example cache retrieval
-  std::string key = "keyC";
-  data_t value3 = Ephemera::instance()->get(key);
-  std::cout << "Key: '" << key << "'" << std::endl;
-  std::cout << "Value: " << value3 << std::endl;
+  key = "keyC";
+  data_t value3;
+  bool found = ec.get(key, value3);
+  if (found == true) {
+    std::cout << "Key: '" << key << "'" << std::endl;
+    std::cout << "Value: " << value3 << std::endl;
+  } else {
+    std::cout << "Unable to find key: '" << key << "'" << std::endl;
+  }
+
+  key = "keyD";
+  found = ec.get(key, value3);
+  if (found == true) {
+    std::cout << "Key: '" << key << "'" << std::endl;
+    std::cout << "Value: " << value3 << std::endl;
+  } else {
+    std::cout << "Unable to find key: '" << key << "'" << std::endl;
+  }
 
   // Waiting for cache expiry thread to join
   cacheExpiry.join();
 
   std::cout << "Done" << std::endl;
 
-  return OK;
+  return 0;
 }

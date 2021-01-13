@@ -23,23 +23,35 @@
 #define INCLUDE_EPHEMERA_H_
 
 #include <unordered_map>
+#include <chrono>
+#include <thread>
+#include <unistd.h>
+#include <execinfo.h>
+#include <signal.h>
+#include <math.h>
 
 #include <string>
 #include <map>
 #include <list>
+#include <vector>
 
-#include "./common.h"
+// Semantic Version
+#define VERSION ("0.2.0")
+
+// Milliseconds to second
+#define MS (1000)
+
+// Default TTL (seconds)
+#define DEFAULT_TTL (60)
 
 // Ephemera Class
+template <typename T>
 class Ephemera {
   // TTL cache, permitting multiple keys for a single TTL
   std::map <time_t, std::list<std::string> > ttl_cache;
 
-  // Data cache
-  std::unordered_map <std::string, data_t> data_cache;
-
-  // Singleton cache instance
-  static Ephemera *s_instance;
+  // Value cache
+  std::unordered_map <std::string, T> value_cache;
 
   // Gets list of keys with same TTL
   std::list<std::string> getKeys(const time_t &ttl) {
@@ -64,12 +76,12 @@ class Ephemera {
         // Store expired TTL entry, collect list
         ttlExpired = ttlKeys->first;
         keysExpired = ttlKeys->second;
-        if (DEBUG) {
-          // for (auto key : ttlKeys->second) {
-          //   std::cout << "Expired Key: '" << key << "'" << std::endl;
-          // }
-          std::cout << "# of Keys Expired: " << keysExpired.size() << std::endl;
+        if (logLevel >= VERBOSE) {
+          for (auto key : ttlKeys->second) {
+            std::cout << "Expired key: '" << key << "'" << std::endl;
+          }
         }
+        if (logLevel >= DEBUG) std::cout << keysExpired.size() << " keys expired" << std::endl;
       } else {
         break;
       }
@@ -83,7 +95,7 @@ class Ephemera {
     // If we found expired cache key entries, purge them
     if (!keysExpired.empty()) {
       for (auto key : keysExpired) {
-        data_cache.erase(key);
+        value_cache.erase(key);
       }
       keysExpired.clear();
     }
@@ -91,22 +103,23 @@ class Ephemera {
 
  public:
   Ephemera() {
+    logLevel = INFO;
     std::cout << "Ephemera v" << VERSION << std::endl;
   }
 
   // Inserts entry in cache
-  void set(const std::string &key, const data_t &value, const time_t &expiry) {
+  bool set(const std::string &key, const T &value, const time_t &expiry) {
     // Validate expiry is positive
     if (expiry <= 0) {
-      std::cout << "Expiry can not be negative" << std::endl;
-      return;
+      std::cerr << "Expiry time can not be negative" << std::endl;
+      return false;
     }
 
     // Check if key already exists
-    data_t existingValue = get(key);
-    if (existingValue.empty() == false) {
-      std::cout << "Key '" << key << "' already exists" << std::endl;
-      return;
+    T existingValue;
+    bool found = get(key, existingValue);
+    if (found == true) {
+      return false;
     }
 
     // Insert entry if key does not already exist
@@ -114,67 +127,53 @@ class Ephemera {
     std::list<std::string> keys = getKeys(ttl);
     keys.push_back(key);
     ttl_cache[ttl] = keys;
-    data_cache[key] = value;
-    if (DEBUG) std::cout << "Added Key: '" << key << "' with an expiry of " << expiry << " seconds" << std::endl;
+    value_cache[key] = value;
+    if (logLevel >= DEBUG) std::cout << "Inserted key: '" << key << "' with an expiry of " << expiry << " seconds" << std::endl;
+    return true;
   }
 
   // Inserts entry in cache using default TTL
-  void set(const std::string &key, const data_t &value) {
+  bool set(const std::string &key, const T &value) {
     // Use default TTL
-    const time_t expiry = DEFAULT_TTL;
-
-    // Check if key already exists
-    data_t existingValue = get(key);
-    if (existingValue.empty() == false) {
-      std::cout << "Key '" << key << "' already exists" << std::endl;
-      return;
-    }
-
-    // Insert entry if key does not already exist
-    time_t ttl = expiry + time(NULL);
-    std::list<std::string> keys = getKeys(ttl);
-    keys.push_back(key);
-    ttl_cache[ttl] = keys;
-    data_cache[key] = value;
-    if (DEBUG) std::cout << "Added Key: '" << key << "' with an expiry of " << expiry << " seconds" << std::endl;
+    return set(key, value, DEFAULT_TTL);
   }
 
   // Get data for key
-  data_t get(const std::string &key) {
-    data_t value;
-    std::unordered_map<std::string, data_t>::const_iterator found = data_cache.find(key);
-    if (found != data_cache.end()) {
+  bool get(const std::string &key, T &value) {
+    typename std::unordered_map<std::string, T>::const_iterator found = value_cache.find(key);
+    if (found != value_cache.end()) {
       value = found->second;
+      return true;
     }
-    return value;
-  }
-
-  // Singleton instance of Cache
-  static Ephemera *instance() {
-    if (!s_instance) {
-      s_instance = new Ephemera();
-    }
-    return s_instance;
+    return false;
   }
 
   // Static flag to control threads
   static volatile bool Active;
+  
+  // Logging Levels
+  enum LogLevel {
+    ERROR,
+    WARN,
+    INFO,
+    DEBUG,
+    VERBOSE
+  };
+  static LogLevel logLevel;
 
   // Static function called within a thread to check if cache keys have expired
-  static void cacheExpiryLoop() {
-    while (Ephemera::Active == true) {
+  static void cacheExpiryLoop(Ephemera<T> &e) {
+    while (Ephemera<T>::Active == true) {
       std::this_thread::sleep_for(std::chrono::milliseconds(MS));
-      Ephemera::instance()->purgeTTLKeys();
+      e.purgeTTLKeys();
     }
 
-    if (DEBUG) std::cout << "cacheExpiryLoop exited" << std::endl;
+    if (logLevel >= DEBUG) std::cout << "cacheExpiryLoop exited" << std::endl;
   }
 };
 
-volatile bool Ephemera::Active = true;
+template <typename T> typename Ephemera<T>::LogLevel Ephemera<T>::logLevel = INFO;
 
-// Allocating and initializing Ephemera's static data member.
-// The pointer is being allocated, not the object inself.
-Ephemera *Ephemera::s_instance = 0;
+template <typename T> volatile bool Ephemera<T>::Active = true;
 
 #endif  // INCLUDE_EPHEMERA_H_

@@ -31,7 +31,7 @@ void signalHandler(int signum) {
   void *array[10];
   size_t size;
 
-  Ephemera::Active = false;
+  Ephemera<data_t>::Active = false;
   std::cerr << "Interrupt signal (" << signum << ") received" << std::endl;
 
   // Print stack trace in event of segmentation fault
@@ -42,7 +42,7 @@ void signalHandler(int signum) {
     // Print out all the frames to stderr
     std::cerr << "Error: signal " << signum << std::endl;
     backtrace_symbols_fd(array, size, STDERR_FILENO);
-    exit(ERROR);
+    exit(1);
   }
 }
 
@@ -54,29 +54,32 @@ int main() {
   signal(SIGPIPE, signalHandler);
   signal(SIGSEGV, signalHandler);
 
+  Ephemera<data_t> ec;
+
   // Spawn cache expiry thread
-  std::thread cacheExpiry(Ephemera::instance()->cacheExpiryLoop);
+  std::thread cacheExpiry(Ephemera<data_t>::cacheExpiryLoop, std::ref(ec));
 
   // Benchmark cache insertion
   data_t value = {"foo", 123};
   for (int i = 0; i < NKEYS; ++i) {
     std::string key = "key" + std::to_string(i);
-    Ephemera::instance()->set(key, value, 1 + floor(i/100000.0));
+    ec.set(key, value, 1 + floor(i/100000.0));
   }
 
   // Check for last inserted key, then gracefully shutdown cache
-  data_t v = Ephemera::instance()->get("key999999");
-  while (v.empty() == false) {
+  data_t v;
+  bool found = ec.get("key999999", v);
+  while (found == true) {
     std::this_thread::sleep_for(std::chrono::milliseconds(MS));
-    v = Ephemera::instance()->get("key999999");
+    found = ec.get("key999999", v);
   }
   std::cout << std::endl;
-  Ephemera::Active = false;
+  Ephemera<data_t>::Active = false;
 
   // Waiting for cache expiry thread to join
   cacheExpiry.join();
 
   std::cout << "Done" << std::endl;
 
-  return OK;
+  return 0;
 }
