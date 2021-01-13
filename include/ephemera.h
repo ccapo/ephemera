@@ -103,7 +103,6 @@ class Ephemera {
 
  public:
   Ephemera() {
-    logLevel = INFO;
     std::cout << "Ephemera v" << VERSION << std::endl;
   }
 
