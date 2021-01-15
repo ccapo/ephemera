@@ -47,11 +47,96 @@
 // Ephemera Class
 template <typename T>
 class Ephemera {
+ public:
+  struct Wrapper {
+    T value;
+    time_t ttl;
+    time_t expiry;
+    Wrapper(): ttl(0), expiry(0) {}
+    explicit Wrapper(T t): value(t), ttl(0), expiry(0) {}
+    Wrapper(T t, time_t ttl): value(t), ttl(ttl), expiry(ttl) {}
+    Wrapper(T t, time_t ttl, time_t expiry): value(t), ttl(ttl), expiry(expiry) {}
+  };
+
+  Ephemera() {
+    std::cout << "Ephemera v" << VERSION << std::endl;
+  }
+
+  // Inserts entry in cache
+  bool set(const std::string &key, const T &value, const time_t &expiry) {
+    // Validate expiry is positive
+    if (expiry <= 0) {
+      std::cerr << "Expiry time can not be negative" << std::endl;
+      return false;
+    }
+
+    // Check if key already exists
+    T existingValue;
+    bool found = get(key, existingValue);
+    if (found == true) {
+      return false;
+    }
+
+    // Insert entry if key does not already exist
+    time_t ttl = expiry + time(NULL);
+    std::list<std::string> keys = getKeys(ttl);
+    keys.push_back(key);
+    ttl_cache[ttl] = keys;
+
+    // Wrap value with TTL and expiry
+    Wrapper w = Wrapper(value, ttl, expiry);
+    value_cache[key] = w;
+
+    if (logLevel >= DEBUG) std::cout << "Inserted key: '" << key << "' with an expiry of " << expiry << " seconds" << std::endl;
+    return true;
+  }
+
+  // Inserts entry in cache using default TTL
+  bool set(const std::string &key, const T &value) {
+    // Use default TTL
+    return set(key, value, DEFAULT_TTL);
+  }
+
+  // Get value for key
+  bool get(const std::string &key, T &value) {
+    typename std::unordered_map<std::string, Wrapper>::const_iterator found = value_cache.find(key);
+    if (found != value_cache.end()) {
+      // TODO(ccapo): Add feature to extend TTL of this entry by expiry
+      value = found->second.value;
+      return true;
+    }
+    return false;
+  }
+
+  // Static flag to control threads
+  static volatile bool Active;
+
+  // Logging Levels
+  enum LogLevel {
+    ERROR,
+    WARN,
+    INFO,
+    DEBUG,
+    VERBOSE
+  };
+  static LogLevel logLevel;
+
+  // Static function called within a thread to check if cache keys have expired
+  static void cacheExpiryLoop(Ephemera<T> e) {
+    while (Ephemera<T>::Active == true) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(MS));
+      e.purgeTTLKeys();
+    }
+
+    if (logLevel >= DEBUG) std::cout << "cacheExpiryLoop exited" << std::endl;
+  }
+
+ private:
   // TTL cache, permitting multiple keys for a single TTL
   std::map <time_t, std::list<std::string> > ttl_cache;
 
   // Value cache
-  std::unordered_map <std::string, T> value_cache;
+  std::unordered_map <std::string, Wrapper> value_cache;
 
   // Gets list of keys with same TTL
   std::list<std::string> getKeys(const time_t &ttl) {
@@ -99,75 +184,6 @@ class Ephemera {
       }
       keysExpired.clear();
     }
-  }
-
- public:
-  Ephemera() {
-    std::cout << "Ephemera v" << VERSION << std::endl;
-  }
-
-  // Inserts entry in cache
-  bool set(const std::string &key, const T &value, const time_t &expiry) {
-    // Validate expiry is positive
-    if (expiry <= 0) {
-      std::cerr << "Expiry time can not be negative" << std::endl;
-      return false;
-    }
-
-    // Check if key already exists
-    T existingValue;
-    bool found = get(key, existingValue);
-    if (found == true) {
-      return false;
-    }
-
-    // Insert entry if key does not already exist
-    time_t ttl = expiry + time(NULL);
-    std::list<std::string> keys = getKeys(ttl);
-    keys.push_back(key);
-    ttl_cache[ttl] = keys;
-    value_cache[key] = value;
-    if (logLevel >= DEBUG) std::cout << "Inserted key: '" << key << "' with an expiry of " << expiry << " seconds" << std::endl;
-    return true;
-  }
-
-  // Inserts entry in cache using default TTL
-  bool set(const std::string &key, const T &value) {
-    // Use default TTL
-    return set(key, value, DEFAULT_TTL);
-  }
-
-  // Get data for key
-  bool get(const std::string &key, T &value) {
-    typename std::unordered_map<std::string, T>::const_iterator found = value_cache.find(key);
-    if (found != value_cache.end()) {
-      value = found->second;
-      return true;
-    }
-    return false;
-  }
-
-  // Static flag to control threads
-  static volatile bool Active;
-  
-  // Logging Levels
-  enum LogLevel {
-    ERROR,
-    WARN,
-    INFO,
-    DEBUG,
-    VERBOSE
-  };
-  static LogLevel logLevel;
-
-  // Static function called within a thread to check if cache keys have expired
-  static void cacheExpiryLoop(Ephemera<T> &e) {
-    while (Ephemera<T>::Active == true) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(MS));
-      e.purgeTTLKeys();
-    }
-
-    if (logLevel >= DEBUG) std::cout << "cacheExpiryLoop exited" << std::endl;
   }
 };
 
