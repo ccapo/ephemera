@@ -36,7 +36,7 @@
 #include <vector>
 
 // Semantic Version
-#define VERSION ("0.2.0")
+#define VERSION ("0.2.1")
 
 // Milliseconds to second
 #define MS (1000)
@@ -48,14 +48,14 @@
 template <typename T>
 class Ephemera {
  public:
-  struct Wrapper {
+  struct wrap_t {
     T value;
     time_t ttl;
     time_t expiry;
-    Wrapper(): ttl(0), expiry(0) {}
-    explicit Wrapper(T t): value(t), ttl(0), expiry(0) {}
-    Wrapper(T t, time_t ttl): value(t), ttl(ttl), expiry(ttl) {}
-    Wrapper(T t, time_t ttl, time_t expiry): value(t), ttl(ttl), expiry(expiry) {}
+    wrap_t(): ttl(0), expiry(0) {}
+    explicit wrap_t(T t): value(t), ttl(0), expiry(0) {}
+    wrap_t(T t, time_t ttl): value(t), ttl(ttl), expiry(ttl) {}
+    wrap_t(T t, time_t ttl, time_t expiry): value(t), ttl(ttl), expiry(expiry) {}
   };
 
   Ephemera() {
@@ -84,10 +84,13 @@ class Ephemera {
     ttl_cache[ttl] = keys;
 
     // Wrap value with TTL and expiry
-    Wrapper w = Wrapper(value, ttl, expiry);
+    wrap_t w = wrap_t(value, ttl, expiry);
     value_cache[key] = w;
 
-    if (logLevel >= DEBUG) std::cout << "Inserted key: '" << key << "' with an expiry of " << expiry << " seconds" << std::endl;
+    if (logLevel >= DEBUG) {
+      std::cout << "Inserted key: '" << key;
+      std::cout << "' with an expiry of " << expiry << " seconds" << std::endl;
+    }
     return true;
   }
 
@@ -99,7 +102,7 @@ class Ephemera {
 
   // Get value for key
   bool get(const std::string &key, T &value) {
-    typename std::unordered_map<std::string, Wrapper>::const_iterator found = value_cache.find(key);
+    typename std::unordered_map<std::string, wrap_t>::const_iterator found = value_cache.find(key);
     if (found != value_cache.end()) {
       // TODO(ccapo): Add feature to extend TTL of this entry by expiry
       value = found->second.value;
@@ -136,7 +139,7 @@ class Ephemera {
   std::map <time_t, std::list<std::string> > ttl_cache;
 
   // Value cache
-  std::unordered_map <std::string, Wrapper> value_cache;
+  std::unordered_map <std::string, wrap_t> value_cache;
 
   // Gets list of keys with same TTL
   std::list<std::string> getKeys(const time_t &ttl) {
@@ -166,7 +169,9 @@ class Ephemera {
             std::cout << "Expired key: '" << key << "'" << std::endl;
           }
         }
-        if (logLevel >= DEBUG) std::cout << keysExpired.size() << " keys expired" << std::endl;
+        if (logLevel >= DEBUG) {
+          std::cout << keysExpired.size() << " keys expired" << std::endl;
+        }
       } else {
         break;
       }
