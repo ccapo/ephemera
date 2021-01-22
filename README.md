@@ -12,7 +12,7 @@ An In-Memory, Write-Only, Header-Only, Key-Value Cache Library
 ## Usage
 - Create an instance of `Ephemera<T> ec;`, where is `T` is the user supplied data type to be stored.
 - Spawn the cache expiry thread: `std::thread cacheExpiry(Ephemera<T>::cacheExpiryLoop, std::ref(ec));`
-- After spawning cache expiry thread the following: `cacheExpiry.join();` will block until the cache expiry thread re-joins the main thread.
+- After spawning cache expiry thread, the following: `cacheExpiry.join();` will block until the cache expiry thread re-joins the main thread.
 - A signal handler should be used to set `Ephemera<T>::Active` to `false` to shutdown the cache expiry thread gracefully.
 - To insert a new key-value pair: `bool success = ec.set(key, value, ttl);` (the default ttl is 60 seconds)
 - To retrieve the value for a key: `bool found = ec.get(key, &value);`
